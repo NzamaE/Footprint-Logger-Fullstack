@@ -1,0 +1,20 @@
+{
+  "name": "my-fullstack-app",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/NzamaE/Footprint-Logger-Fullstack#readme",
+  "bugs": {
+    "url": "https://github.com/NzamaE/Footprint-Logger-Fullstack/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NzamaE/Footprint-Logger-Fullstack.git"
+  },
+  "license": "ISC",
+  "author": "Ernest Fanyana Nzama",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
