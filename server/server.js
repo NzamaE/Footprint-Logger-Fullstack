@@ -1,17 +1,20 @@
 const express = require('express');
 const {query, validationResult} = require('express-validator');
 
-
+const app = express();
 
 
 const userRoutes = require('./routes/users');
+const authRoutes = require('./routes/authRoutes');
 
 
-
-const app = express();
+app.use(express.json());
+app.use(express.urlencoded({extended: true}));
 
 //Mount, your request will pass here and then go to the "userRoutes"
 app.use("/", userRoutes);
+app.use("/user",authRoutes);
+
 
 
 app.get("/hello",query('person').notEmpty() ,(req,res)=>{
