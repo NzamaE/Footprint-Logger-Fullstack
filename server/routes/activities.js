@@ -9,6 +9,9 @@ const router = express.Router();
 // All routes are protected
 router.use(authenticateToken);
 
+
+
+
 // Add new activity
 router.post('/', validateActivity, async (req, res) => {
   try {
@@ -32,6 +35,13 @@ router.post('/', validateActivity, async (req, res) => {
     res.status(500).json({ error: 'Error creating activity log' });
   }
 });
+
+
+
+
+
+
+
 
 // Get user's activities with filtering and pagination
 router.get('/', async (req, res) => {
@@ -75,6 +85,14 @@ router.get('/', async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
 // Get single activity
 router.get('/:id', async (req, res) => {
   try {
@@ -93,6 +111,14 @@ router.get('/:id', async (req, res) => {
     res.status(500).json({ error: 'Error fetching activity' });
   }
 });
+
+
+
+
+
+
+
+
 
 // Update activity
 router.put('/:id', validateActivity, async (req, res) => {
@@ -118,6 +144,10 @@ router.put('/:id', validateActivity, async (req, res) => {
     res.status(500).json({ error: 'Error updating activity' });
   }
 });
+
+
+
+
 
 // Delete activity
 router.delete('/:id', async (req, res) => {

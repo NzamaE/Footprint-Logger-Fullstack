@@ -9,6 +9,15 @@ const router = express.Router();
 // All dashboard routes are protected
 router.use(authenticateToken);
 
+
+
+
+
+
+
+
+
+
 // Get user dashboard data with community comparison
 router.get('/dashboard', async (req, res) => {
   try {
@@ -96,6 +105,18 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({ error: 'Error fetching dashboard data' });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Get weekly summaries and streak tracking
 router.get('/streak', async (req, res) => {
@@ -192,6 +213,19 @@ router.get('/streak', async (req, res) => {
     res.status(500).json({ error: 'Error fetching streak data' });
   }
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // Get leaderboard of low-footprint users
 router.get('/leaderboard', async (req, res) => {
@@ -316,6 +350,15 @@ router.get('/leaderboard', async (req, res) => {
     res.status(500).json({ error: 'Error fetching leaderboard' });
   }
 });
+
+
+
+
+
+
+
+
+
 
 // Get user statistics
 router.get('/stats', async (req, res) => {
