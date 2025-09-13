@@ -1,65 +1,85 @@
-/* Container styling */
+/* Register.css */
+
+/* Container takes up the full screen */
 .register-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  background: #f7f9fc;
+  height: 100vh;      /* full height */
+  width: 100vw;       /* full width */
+  background: linear-gradient(135deg, #ff6a00, #ee0979);
+  margin: 0;
+  padding: 0;
 }
 
-/* Form styling */
+/* The form card */
 .register-form {
-  background: #ffffff;
-  padding: 2rem;
+  background: #fff;
+  padding: 2rem 2.5rem;
   border-radius: 12px;
-  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
-  width: 360px;
-}
-
-.register-title {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 420px;
   text-align: center;
+}
+
+/* Heading */
+.register-form h2 {
   margin-bottom: 1.5rem;
-  font-size: 1.8rem;
   color: #333;
+  font-size: 1.9rem;
+  font-weight: 700;
 }
 
-.form-group {
-  margin-bottom: 1rem;
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group label {
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.form-group input {
-  padding: 0.8rem;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font-size: 1rem;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #28a745;
-}
-
-/* Button */
-.register-btn {
+/* Input fields */
+.register-form input {
   width: 100%;
   padding: 0.9rem;
+  margin: 0.7rem 0;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  font-size: 1rem;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+
+.register-form input:focus {
+  border-color: #ee0979;
+  box-shadow: 0 0 5px rgba(238, 9, 121, 0.3);
+}
+
+/* Submit button */
+.register-form button {
+  width: 100%;
+  padding: 0.9rem;
+  margin-top: 1rem;
+  background: #ee0979;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
   border: none;
   border-radius: 8px;
-  background: #28a745;
-  color: white;
-  font-size: 1rem;
   cursor: pointer;
   transition: background 0.3s ease;
 }
 
-.register-btn:hover {
-  background: #1e7e34;
+.register-form button:hover {
+  background: #d30768;
+}
+
+/* Switch text (login link) */
+.switch-text {
+  margin-top: 1rem;
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.switch-text a {
+  color: #ee0979;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.switch-text a:hover {
+  text-decoration: underline;
 }

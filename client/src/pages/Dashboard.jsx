@@ -17,11 +17,30 @@ function Dashboard() {
 
       {/* Main content */}
       <main className="dashboard-main">
+        {/* 🔹 Top navigation bar */}
+        <nav className="dashboard-topnav">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="search-input"
+          />
+          <div className="topnav-right">
+            <span className="notification">🔔</span>
+            <img
+              src="https://i.pravatar.cc/40"
+              alt="Profile"
+              className="profile-avatar"
+            />
+          </div>
+        </nav>
+
+        {/* Page Header */}
         <header className="dashboard-header">
           <h1>Welcome to your Dashboard</h1>
           <p>Here’s an overview of your activity.</p>
         </header>
 
+        {/* Dashboard cards */}
         <section className="dashboard-cards">
           <div className="card">
             <h3>Users</h3>

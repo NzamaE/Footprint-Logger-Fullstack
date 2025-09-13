@@ -21,12 +21,13 @@ function Login() {
     try {
       const { data } = await API.post("/auth/login", formData);
 
-      // ✅ Save token and user info
+      // Save token and user info
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
       alert("Login successful!");
       window.location.href = "/dashboard";
+
     } catch (err) {
       alert(err.response?.data?.error || "Login failed");
     } finally {
