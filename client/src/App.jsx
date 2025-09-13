@@ -1,31 +1,32 @@
-import { useState } from 'react'
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
-
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-
-//Componet Imports
-import Register from "./components/Register.jsx";
-import Login from './components/Login.jsx';
-import Dashboard from './components/Dashboard.jsx';
-
-
-
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const isAuthenticated = !!localStorage.getItem("token");
 
   return (
-    <>
-      {/* <Navbar />*/}
-      {/*  <Register/>*/}
-      {/*  <Login />*/}
-       <Dashboard/>
-    {/*  <h1>Vite + React</h1>*/}
-      
-    </>
-  )
+    <Router>
+      <Routes>
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+
+        {/* Protect dashboard route */}
+        <Route
+          path="/dashboard"
+          element={
+            isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />
+          }
+        />
+
+        {/* Default route */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
