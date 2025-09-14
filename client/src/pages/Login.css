@@ -3,7 +3,7 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  background: linear-gradient(135deg, #123524, #3E7B27);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -17,7 +17,7 @@ body {
   align-items: center;
   height: 100vh;   /* full viewport height */
   width: 100vw;    /* full viewport width */
-  background: linear-gradient(135deg, #6a11cb, #2575fc);
+ background: linear-gradient(135deg, #123524, #3E7B27);
   margin: 0;
   padding: 0;
 }
@@ -52,15 +52,15 @@ body {
 }
 
 .login-form input:focus {
-  border-color: #2575fc;
-  box-shadow: 0 0 5px rgba(37, 117, 252, 0.3);
+  border-color: #123524;
+  box-shadow: 0 0 5px #3E7B27;
 }
 
 .login-form button {
   width: 100%;
   padding: 0.9rem;
   margin-top: 1rem;
-  background: #2575fc;
+  background: #123524;
   color: #fff;
   font-size: 1rem;
   font-weight: 600;
@@ -71,11 +71,11 @@ body {
 }
 
 .login-form button:hover {
-  background: #1b5ed6;
+  background: #123524;
 }
 
 .login-form button:disabled {
-  background: #a0c0ff;
+  background: #3E7B27;
   cursor: not-allowed;
 }
 
@@ -86,7 +86,7 @@ body {
 }
 
 .switch-text a {
-  color: #2575fc;
+  color: #3E7B27;
   font-weight: 600;
   text-decoration: none;
 }
