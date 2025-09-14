@@ -104,29 +104,39 @@ function Dashboard() {
 
   // Add new activity
   const handleAddActivity = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await API.post('/activities', {
-        ...newActivity,
-        carbonFootprint: parseFloat(newActivity.carbonFootprint)
-      });
-      
-      setNewActivity({
-        type: '',
-        description: '',
-        carbonFootprint: '',
-        details: {}
-      });
-      setShowAddActivity(false);
-      fetchActivities(); // Refresh activities list
-      
-      // Show success message
-      alert('Activity added successfully!');
-    } catch (err) {
-      console.error('Error adding activity:', err);
-      alert('Error adding activity. Please try again.');
-    }
-  };
+  e.preventDefault();
+  try {
+    const activityData = {
+      ...newActivity,
+      carbonFootprint: parseFloat(newActivity.carbonFootprint)
+    };
+    
+    console.log('Sending activity data:', activityData);
+    
+    const response = await API.post('/activities', activityData);
+    
+    console.log('Response:', response.data);
+    
+    setNewActivity({
+      type: '',
+      description: '',
+      carbonFootprint: '',
+      details: {}
+    });
+    setShowAddActivity(false);
+    fetchActivities();
+    
+    alert('Activity added successfully!');
+  } catch (err) {
+    console.error('Full error:', err);
+    console.error('Response data:', err.response?.data);
+    console.error('Status:', err.response?.status);
+    
+    // Show the actual server error message
+    const errorMessage = err.response?.data?.error || err.response?.data?.message || 'Unknown error';
+    alert(`Error adding activity: ${errorMessage}`);
+  }
+};
 
   // Update activity
   const handleUpdateActivity = async (e) => {
@@ -186,15 +196,13 @@ function Dashboard() {
   };
 
   // Activity type options
-  const activityTypes = [
-    'Transportation',
-    'Energy',
-    'Food',
-    'Waste',
-    'Water',
-    'Shopping',
-    'Other'
-  ];
+const activityTypes = [
+  'transport',    // Changed from 'Transportation'
+  'energy',       // Changed from 'Energy'
+  'food',         // Changed from 'Food'
+  'waste',        // Changed from 'Waste'
+  'other'         // Changed from 'Other', removed 'Water' and 'Shopping'
+];
 
   return (
     <div className="dashboard-container">
@@ -202,10 +210,10 @@ function Dashboard() {
       <aside className="dashboard-sidebar">
         <h2 className="sidebar-title">EcoTracker</h2>
         <ul className="sidebar-menu">
-          <li>🏠 Home</li>
-          <li>📊 Analytics</li>
-          <li>⚙️ Settings</li>
-          <li onClick={handleLogout}>🚪 Logout</li>
+          <li>Home</li>
+          <li>Analytics</li>
+          <li>Settings</li>
+          <li onClick={handleLogout}> Logout</li>
         </ul>
       </aside>
 
@@ -237,7 +245,7 @@ function Dashboard() {
         {/* Page Header */}
         <header className="dashboard-header">
           <h1>
-            Welcome back{user ? `, ${user.username}` : ""}! 👋
+            Welcome back{user ? `, ${user.username}` : ""}! 
           </h1>
           <p>Track your carbon footprint and make a difference.</p>
         </header>
@@ -245,7 +253,7 @@ function Dashboard() {
         {/* Dashboard cards */}
         <section className="dashboard-cards">
           <div className="card">
-            <h3>🌱 Total Emissions</h3>
+            <h3> Total Emissions</h3>
             {loadingDashboard ? (
               <div className="loader" />
             ) : (
@@ -261,7 +269,7 @@ function Dashboard() {
             )}
           </div>
           <div className="card">
-            <h3>🔥 Current Streak</h3>
+            <h3> Current Streak</h3>
             {loadingStreak ? (
               <div className="loader" />
             ) : (
