@@ -43,7 +43,7 @@ function Register() {
         {/* Background image container */}
         <div className="background-image-container">
           <img 
-            src="../public/istockphoto-1203960441-612x612-1-removebg-preview.png" 
+            src="istockphoto-1203960441-612x612-1-removebg-preview.png" 
             alt="Background" 
             className="background-image"
           />
