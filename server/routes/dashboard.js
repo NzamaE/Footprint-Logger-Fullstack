@@ -9,24 +9,20 @@ const router = express.Router();
 // All dashboard routes are protected
 router.use(authenticateToken);
 
-
-
-
-
-
-
-
-
+// Helper function to get date range
+const getDateRange = (days) => {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return date;
+};
 
 // Get user dashboard data with community comparison
 router.get('/dashboard', async (req, res) => {
   try {
     const userId = req.user._id;
-    
-    // Get activities from last 30 days
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgo = getDateRange(30);
 
+    // Get user activities from last 30 days
     const userActivities = await Activity.find({
       userId,
       date: { $gte: thirtyDaysAgo }
@@ -35,13 +31,9 @@ router.get('/dashboard', async (req, res) => {
     // Calculate user's total emissions
     const totalEmissions = userActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
 
-    // Get all users' activities for community average (using aggregation for better performance)
+    // Get community stats using aggregation
     const communityStats = await Activity.aggregate([
-      {
-        $match: {
-          date: { $gte: thirtyDaysAgo }
-        }
-      },
+      { $match: { date: { $gte: thirtyDaysAgo } } },
       {
         $group: {
           _id: '$userId',
@@ -58,15 +50,13 @@ router.get('/dashboard', async (req, res) => {
       }
     ]);
 
-    const communityAverage = communityStats.length > 0 ? communityStats[0].averageEmissions : 0;
+    const communityAverage = communityStats[0]?.averageEmissions || 0;
 
     // Weekly breakdown for current user
     const weeklyData = [];
     for (let i = 0; i < 4; i++) {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - (i * 7 + 6));
-      const weekEnd = new Date();
-      weekEnd.setDate(weekEnd.getDate() - (i * 7));
+      const weekStart = getDateRange(i * 7 + 6);
+      const weekEnd = getDateRange(i * 7);
 
       const weekActivities = userActivities.filter(activity => {
         const activityDate = new Date(activity.date);
@@ -74,17 +64,18 @@ router.get('/dashboard', async (req, res) => {
       });
 
       const weekTotal = weekActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
-      
+
       weeklyData.unshift({
-        week: `Week ${4-i}`,
+        week: `Week ${4 - i}`,
         emissions: parseFloat(weekTotal.toFixed(2)),
         activitiesCount: weekActivities.length
       });
     }
 
-    // Emissions by category
+    // Emissions by category - FIXED: consistent field naming
     const emissionsByCategory = userActivities.reduce((acc, activity) => {
-      acc[activity.type] = (acc[activity.type] || 0) + activity.carbonFootprint;
+      const type = activity.activityType; // Consistently using activityType
+      acc[type] = (acc[type] || 0) + activity.carbonFootprint;
       return acc;
     }, {});
 
@@ -106,26 +97,11 @@ router.get('/dashboard', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
 // Get weekly summaries and streak tracking
 router.get('/streak', async (req, res) => {
   try {
     const userId = req.user._id;
-    
-    // Get activities from last 90 days for streak calculation
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const ninetyDaysAgo = getDateRange(90);
 
     const activities = await Activity.find({
       userId,
@@ -133,65 +109,63 @@ router.get('/streak', async (req, res) => {
     }).sort({ date: -1 });
 
     // Group activities by date
-    const dailyActivities = {};
-    activities.forEach(activity => {
+    const dailyActivities = activities.reduce((acc, activity) => {
       const dateKey = activity.date.toISOString().split('T')[0];
-      if (!dailyActivities[dateKey]) {
-        dailyActivities[dateKey] = [];
-      }
-      dailyActivities[dateKey].push(activity);
-    });
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(activity);
+      return acc;
+    }, {});
 
     // Calculate current streak
     let currentStreak = 0;
     const today = new Date();
-    
+
     for (let i = 0; i < 90; i++) {
       const checkDate = new Date(today);
       checkDate.setDate(checkDate.getDate() - i);
       const dateKey = checkDate.toISOString().split('T')[0];
-      
-      if (dailyActivities[dateKey] && dailyActivities[dateKey].length > 0) {
+
+      if (dailyActivities[dateKey]?.length > 0) {
         currentStreak++;
       } else {
         break;
       }
     }
 
-    // Calculate longest streak
+    // Calculate longest streak - IMPROVED: better logic
     let longestStreak = 0;
     let tempStreak = 0;
     const sortedDates = Object.keys(dailyActivities).sort();
-    
+
     for (let i = 0; i < sortedDates.length; i++) {
       const currentDate = new Date(sortedDates[i]);
-      const nextDate = i < sortedDates.length - 1 ? new Date(sortedDates[i + 1]) : null;
+      const nextDate = sortedDates[i + 1] ? new Date(sortedDates[i + 1]) : null;
       
       tempStreak++;
       
-      if (!nextDate || (nextDate - currentDate) > 24 * 60 * 60 * 1000) {
+      const daysDiff = nextDate ? (nextDate - currentDate) / (24 * 60 * 60 * 1000) : Infinity;
+      
+      if (daysDiff > 1) { // Break in streak
         longestStreak = Math.max(longestStreak, tempStreak);
         tempStreak = 0;
       }
     }
+    longestStreak = Math.max(longestStreak, tempStreak); // Don't forget the last streak
 
     // Weekly summary for last 4 weeks
     const weeklySummary = [];
     for (let week = 0; week < 4; week++) {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - (week * 7 + 6));
-      const weekEnd = new Date();
-      weekEnd.setDate(weekEnd.getDate() - (week * 7));
+      const weekStart = getDateRange(week * 7 + 6);
+      const weekEnd = getDateRange(week * 7);
 
       const weekActivities = activities.filter(activity => {
         const activityDate = new Date(activity.date);
         return activityDate >= weekStart && activityDate <= weekEnd;
       });
 
-      const daysWithActivity = new Set();
-      weekActivities.forEach(activity => {
-        daysWithActivity.add(activity.date.toISOString().split('T')[0]);
-      });
+      const daysWithActivity = new Set(
+        weekActivities.map(activity => activity.date.toISOString().split('T')[0])
+      );
 
       weeklySummary.unshift({
         week: week + 1,
@@ -206,7 +180,7 @@ router.get('/streak', async (req, res) => {
       longestStreak,
       weeklySummary,
       totalDays: Object.keys(dailyActivities).length,
-      averageActivitiesPerDay: activities.length / Math.max(Object.keys(dailyActivities).length, 1)
+      averageActivitiesPerDay: parseFloat((activities.length / Math.max(Object.keys(dailyActivities).length, 1)).toFixed(2))
     });
   } catch (error) {
     console.error('Streak fetch error:', error);
@@ -214,33 +188,16 @@ router.get('/streak', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 // Get leaderboard of low-footprint users
 router.get('/leaderboard', async (req, res) => {
   try {
-    const { period = '30' } = req.query; // days
-    const daysAgo = new Date();
-    daysAgo.setDate(daysAgo.getDate() - parseInt(period));
+    const { period = '30' } = req.query;
+    const periodInt = Math.max(1, Math.min(365, parseInt(period))); // Validate period
+    const daysAgo = getDateRange(periodInt);
 
     // Use aggregation pipeline for efficient leaderboard calculation
     const leaderboard = await Activity.aggregate([
-      {
-        $match: {
-          date: { $gte: daysAgo }
-        }
-      },
+      { $match: { date: { $gte: daysAgo } } },
       {
         $group: {
           _id: '$userId',
@@ -248,11 +205,7 @@ router.get('/leaderboard', async (req, res) => {
           activityCount: { $sum: 1 }
         }
       },
-      {
-        $match: {
-          activityCount: { $gte: 5 } // Only users with at least 5 activities
-        }
-      },
+      { $match: { activityCount: { $gte: 5 } } }, // Only users with at least 5 activities
       {
         $lookup: {
           from: 'users',
@@ -261,25 +214,17 @@ router.get('/leaderboard', async (req, res) => {
           as: 'user'
         }
       },
-      {
-        $unwind: '$user'
-      },
+      { $unwind: '$user' },
       {
         $project: {
           username: '$user.username',
           totalEmissions: { $round: ['$totalEmissions', 2] },
           activityCount: 1,
-          averagePerActivity: { 
-            $round: [{ $divide: ['$totalEmissions', '$activityCount'] }, 2] 
-          }
+          averagePerActivity: { $round: [{ $divide: ['$totalEmissions', '$activityCount'] }, 2] }
         }
       },
-      {
-        $sort: { totalEmissions: 1 } // Sort by lowest emissions
-      },
-      {
-        $limit: 10
-      }
+      { $sort: { totalEmissions: 1 } },
+      { $limit: 10 }
     ]);
 
     // Add rank to each user
@@ -288,8 +233,8 @@ router.get('/leaderboard', async (req, res) => {
       ...user
     }));
 
-    // Find current user's position
-    const currentUserStats = await Activity.aggregate([
+    // Find current user's position - IMPROVED: single aggregation
+    const [currentUserStats] = await Activity.aggregate([
       {
         $match: {
           userId: req.user._id,
@@ -306,14 +251,9 @@ router.get('/leaderboard', async (req, res) => {
     ]);
 
     let currentUserRank = null;
-    if (currentUserStats.length > 0) {
-      const userTotal = currentUserStats[0].totalEmissions;
-      const betterUsers = await Activity.aggregate([
-        {
-          $match: {
-            date: { $gte: daysAgo }
-          }
-        },
+    if (currentUserStats && currentUserStats.activityCount >= 5) {
+      const [rankData] = await Activity.aggregate([
+        { $match: { date: { $gte: daysAgo } } },
         {
           $group: {
             _id: '$userId',
@@ -321,29 +261,49 @@ router.get('/leaderboard', async (req, res) => {
             activityCount: { $sum: 1 }
           }
         },
+        { $match: { activityCount: { $gte: 5 } } },
         {
-          $match: {
-            activityCount: { $gte: 5 },
-            totalEmissions: { $lt: userTotal }
+          $group: {
+            _id: null,
+            users: {
+              $push: {
+                userId: '$_id',
+                totalEmissions: '$totalEmissions'
+              }
+            }
           }
         },
         {
-          $count: 'count'
+          $project: {
+            rank: {
+              $add: [
+                {
+                  $size: {
+                    $filter: {
+                      input: '$users',
+                      cond: { $lt: ['$$this.totalEmissions', currentUserStats.totalEmissions] }
+                    }
+                  }
+                },
+                1
+              ]
+            }
+          }
         }
       ]);
-
-      currentUserRank = betterUsers.length > 0 ? betterUsers[0].count + 1 : 1;
+      
+      currentUserRank = rankData?.rank || null;
     }
 
     res.json({
       leaderboard: rankedLeaderboard,
-      currentUser: currentUserStats.length > 0 ? {
+      currentUser: currentUserStats ? {
         rank: currentUserRank,
-        totalEmissions: parseFloat(currentUserStats[0].totalEmissions.toFixed(2)),
-        activityCount: currentUserStats[0].activityCount,
-        averagePerActivity: parseFloat((currentUserStats[0].totalEmissions / currentUserStats[0].activityCount).toFixed(2))
+        totalEmissions: parseFloat(currentUserStats.totalEmissions.toFixed(2)),
+        activityCount: currentUserStats.activityCount,
+        averagePerActivity: parseFloat((currentUserStats.totalEmissions / currentUserStats.activityCount).toFixed(2))
       } : null,
-      period: `${period} days`
+      period: `${periodInt} days`
     });
   } catch (error) {
     console.error('Leaderboard fetch error:', error);
@@ -351,24 +311,15 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
-
-
-
-
-
-
-
-
-
 // Get user statistics
 router.get('/stats', async (req, res) => {
   try {
     const userId = req.user._id;
     const { period = '30' } = req.query;
-    
-    const daysAgo = new Date();
-    daysAgo.setDate(daysAgo.getDate() - parseInt(period));
+    const periodInt = Math.max(1, Math.min(365, parseInt(period)));
+    const daysAgo = getDateRange(periodInt);
 
+    // FIXED: Consistent field naming throughout
     const stats = await Activity.aggregate([
       {
         $match: {
@@ -378,7 +329,7 @@ router.get('/stats', async (req, res) => {
       },
       {
         $group: {
-          _id: '$type',
+          _id: '$activityType', // Consistently using activityType
           count: { $sum: 1 },
           totalEmissions: { $sum: '$carbonFootprint' },
           averageEmissions: { $avg: '$carbonFootprint' }
@@ -386,19 +337,17 @@ router.get('/stats', async (req, res) => {
       },
       {
         $project: {
-          type: '$_id',
+          activityType: '$_id',
           count: 1,
           totalEmissions: { $round: ['$totalEmissions', 2] },
           averageEmissions: { $round: ['$averageEmissions', 2] }
         }
       },
-      {
-        $sort: { totalEmissions: -1 }
-      }
+      { $sort: { totalEmissions: -1 } }
     ]);
 
     // Overall totals
-    const overallStats = await Activity.aggregate([
+    const [overallStats] = await Activity.aggregate([
       {
         $match: {
           userId: userId,
@@ -419,12 +368,12 @@ router.get('/stats', async (req, res) => {
 
     res.json({
       byCategory: stats,
-      overall: overallStats.length > 0 ? {
-        totalActivities: overallStats[0].totalActivities,
-        totalEmissions: parseFloat(overallStats[0].totalEmissions.toFixed(2)),
-        averageEmissions: parseFloat(overallStats[0].averageEmissions.toFixed(2)),
-        minEmissions: parseFloat(overallStats[0].minEmissions.toFixed(2)),
-        maxEmissions: parseFloat(overallStats[0].maxEmissions.toFixed(2))
+      overall: overallStats ? {
+        totalActivities: overallStats.totalActivities,
+        totalEmissions: parseFloat(overallStats.totalEmissions.toFixed(2)),
+        averageEmissions: parseFloat(overallStats.averageEmissions.toFixed(2)),
+        minEmissions: parseFloat(overallStats.minEmissions.toFixed(2)),
+        maxEmissions: parseFloat(overallStats.maxEmissions.toFixed(2))
       } : {
         totalActivities: 0,
         totalEmissions: 0,
@@ -432,7 +381,7 @@ router.get('/stats', async (req, res) => {
         minEmissions: 0,
         maxEmissions: 0
       },
-      period: `${period} days`
+      period: `${periodInt} days`
     });
   } catch (error) {
     console.error('Stats fetch error:', error);
