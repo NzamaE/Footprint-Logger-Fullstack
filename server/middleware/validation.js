@@ -1,3 +1,4 @@
+
 // middleware/validation.js - Input validation middleware
 const validateRegistration = (req, res, next) => {
   const { username, email, password } = req.body;
@@ -43,24 +44,40 @@ const validateLogin = (req, res, next) => {
 };
 
 const validateActivity = (req, res, next) => {
-  const { type, description, carbonFootprint } = req.body;
+  const { activityName, activityType, description, quantity, carbonContribution } = req.body;
 
-  if (!type || !description || carbonFootprint === undefined) {
+  // Check required fields
+  if (!activityName || !activityType || !description || !quantity || carbonContribution === undefined) {
     return res.status(400).json({ 
-      error: 'Type, description, and carbon footprint are required' 
+      error: 'Activity name, activity type, description, quantity, and carbon contribution are required' 
     });
   }
 
+  // Validate activity name
+  if (activityName.trim().length === 0) {
+    return res.status(400).json({ 
+      error: 'Activity name cannot be empty' 
+    });
+  }
+
+  if (activityName.length > 100) {
+    return res.status(400).json({ 
+      error: 'Activity name cannot exceed 100 characters' 
+    });
+  }
+
+  // Validate activity type
   const validTypes = ['transport', 'energy', 'food', 'waste', 'other'];
-  if (!validTypes.includes(type)) {
+  if (!validTypes.includes(activityType)) {
     return res.status(400).json({ 
-      error: `Type must be one of: ${validTypes.join(', ')}` 
+      error: `Activity type must be one of: ${validTypes.join(', ')}` 
     });
   }
 
-  if (carbonFootprint < 0) {
+  // Validate description
+  if (description.trim().length === 0) {
     return res.status(400).json({ 
-      error: 'Carbon footprint cannot be negative' 
+      error: 'Description cannot be empty' 
     });
   }
 
@@ -68,6 +85,65 @@ const validateActivity = (req, res, next) => {
     return res.status(400).json({ 
       error: 'Description cannot exceed 500 characters' 
     });
+  }
+
+  // Validate quantity object
+  if (!quantity.value || !quantity.unit) {
+    return res.status(400).json({ 
+      error: 'Quantity must include both value and unit' 
+    });
+  }
+
+  // Validate quantity value
+  if (typeof quantity.value !== 'number' || isNaN(quantity.value)) {
+    return res.status(400).json({ 
+      error: 'Quantity value must be a valid number' 
+    });
+  }
+
+  if (quantity.value < 0) {
+    return res.status(400).json({ 
+      error: 'Quantity value cannot be negative' 
+    });
+  }
+
+  // Validate quantity unit
+  const validUnits = [
+    'km', 'miles', 'm',           // Distance
+    'L', 'gallons', 'ml',         // Volume
+    'hours', 'minutes', 'days',   // Time
+    'kg', 'lbs', 'g',            // Weight
+    'kWh', 'MWh', 'BTU',         // Energy
+    'items', 'pieces', 'servings' // Count
+  ];
+
+  if (!validUnits.includes(quantity.unit)) {
+    return res.status(400).json({ 
+      error: `Quantity unit must be one of: ${validUnits.join(', ')}` 
+    });
+  }
+
+  // Validate carbon contribution
+  if (typeof carbonContribution !== 'number' || isNaN(carbonContribution)) {
+    return res.status(400).json({ 
+      error: 'Carbon contribution must be a valid number' 
+    });
+  }
+
+  if (carbonContribution < 0) {
+    return res.status(400).json({ 
+      error: 'Carbon contribution cannot be negative' 
+    });
+  }
+
+  // Validate date if provided
+  if (req.body.date) {
+    const dateValue = new Date(req.body.date);
+    if (isNaN(dateValue.getTime())) {
+      return res.status(400).json({ 
+        error: 'Date must be a valid date format' 
+      });
+    }
   }
 
   next();
