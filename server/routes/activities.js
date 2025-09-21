@@ -59,6 +59,7 @@ router.post('/', validateActivity, async (req, res) => {
 
 // Get user's activities with filtering and pagination
 router.get('/', async (req, res) => {
+    console.log('🔍 REQUEST HIT - User:', req.user?._id, 'Query:', req.query);
   try {
     const { 
       startDate, 
@@ -79,7 +80,7 @@ router.get('/', async (req, res) => {
     }
 
     // Activity type filtering
-    if (activityType) {
+    if (activityType && activityType !== 'all') {
       query.activityType = activityType;
     }
 
@@ -94,6 +95,8 @@ router.get('/', async (req, res) => {
       .sort({ date: -1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    console.log('🔍 FOUND', activities.length, 'activities for user', req.user._id);
 
     const total = await Activity.countDocuments(query);
 

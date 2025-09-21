@@ -1,4 +1,3 @@
-
 // middleware/validation.js - Input validation middleware
 const validateRegistration = (req, res, next) => {
   const { username, email, password } = req.body;
@@ -44,12 +43,12 @@ const validateLogin = (req, res, next) => {
 };
 
 const validateActivity = (req, res, next) => {
-  const { activityName, activityType, description, quantity, carbonContribution } = req.body;
+  const { activityName, activityType, description, quantity, activityDetails } = req.body;
 
   // Check required fields
-  if (!activityName || !activityType || !description || !quantity || carbonContribution === undefined) {
+  if (!activityName || !activityType || !description || !quantity) {
     return res.status(400).json({ 
-      error: 'Activity name, activity type, description, quantity, and carbon contribution are required' 
+      error: 'Activity name, activity type, description, and quantity are required' 
     });
   }
 
@@ -101,9 +100,9 @@ const validateActivity = (req, res, next) => {
     });
   }
 
-  if (quantity.value < 0) {
+  if (quantity.value <= 0) {
     return res.status(400).json({ 
-      error: 'Quantity value cannot be negative' 
+      error: 'Quantity value must be greater than 0' 
     });
   }
 
@@ -123,17 +122,14 @@ const validateActivity = (req, res, next) => {
     });
   }
 
-  // Validate carbon contribution
-  if (typeof carbonContribution !== 'number' || isNaN(carbonContribution)) {
-    return res.status(400).json({ 
-      error: 'Carbon contribution must be a valid number' 
-    });
-  }
-
-  if (carbonContribution < 0) {
-    return res.status(400).json({ 
-      error: 'Carbon contribution cannot be negative' 
-    });
+  // Validate activity-specific details based on type
+  if (activityDetails) {
+    const validationResult = validateActivityDetails(activityType, activityDetails);
+    if (!validationResult.isValid) {
+      return res.status(400).json({ 
+        error: validationResult.error 
+      });
+    }
   }
 
   // Validate date if provided
@@ -147,6 +143,98 @@ const validateActivity = (req, res, next) => {
   }
 
   next();
+};
+
+// Helper function to validate activity-specific details
+const validateActivityDetails = (activityType, activityDetails) => {
+  switch (activityType) {
+    case 'transport':
+      return validateTransportDetails(activityDetails);
+    case 'energy':
+      return validateEnergyDetails(activityDetails);
+    case 'food':
+      return validateFoodDetails(activityDetails);
+    case 'waste':
+      return validateWasteDetails(activityDetails);
+    default:
+      return { isValid: true };
+  }
+};
+
+const validateTransportDetails = (details) => {
+  const validTransportModes = [
+    'car_gasoline', 'car_diesel', 'car_electric', 'car_hybrid', 
+    'bus', 'train', 'plane_domestic', 'plane_international', 
+    'motorcycle', 'bicycle', 'walking'
+  ];
+
+  if (details.transportMode && !validTransportModes.includes(details.transportMode)) {
+    return {
+      isValid: false,
+      error: `Transport mode must be one of: ${validTransportModes.join(', ')}`
+    };
+  }
+
+  if (details.fuelEfficiency && (typeof details.fuelEfficiency !== 'number' || details.fuelEfficiency <= 0)) {
+    return {
+      isValid: false,
+      error: 'Fuel efficiency must be a positive number'
+    };
+  }
+
+  return { isValid: true };
+};
+
+const validateEnergyDetails = (details) => {
+  const validEnergySources = [
+    'coal', 'natural_gas', 'solar', 'wind', 'hydro', 'nuclear', 'grid_average'
+  ];
+
+  if (details.energySource && !validEnergySources.includes(details.energySource)) {
+    return {
+      isValid: false,
+      error: `Energy source must be one of: ${validEnergySources.join(', ')}`
+    };
+  }
+
+  return { isValid: true };
+};
+
+const validateFoodDetails = (details) => {
+  const validFoodTypes = [
+    'beef', 'pork', 'chicken', 'fish', 'dairy_milk', 'dairy_cheese',
+    'vegetables', 'fruits', 'grains', 'processed_food'
+  ];
+
+  if (details.foodType && !validFoodTypes.includes(details.foodType)) {
+    return {
+      isValid: false,
+      error: `Food type must be one of: ${validFoodTypes.join(', ')}`
+    };
+  }
+
+  return { isValid: true };
+};
+
+const validateWasteDetails = (details) => {
+  const validWasteTypes = ['general_waste', 'recycling', 'compost', 'hazardous'];
+  const validDisposalMethods = ['landfill', 'incineration', 'recycling', 'composting'];
+
+  if (details.wasteType && !validWasteTypes.includes(details.wasteType)) {
+    return {
+      isValid: false,
+      error: `Waste type must be one of: ${validWasteTypes.join(', ')}`
+    };
+  }
+
+  if (details.disposalMethod && !validDisposalMethods.includes(details.disposalMethod)) {
+    return {
+      isValid: false,
+      error: `Disposal method must be one of: ${validDisposalMethods.join(', ')}`
+    };
+  }
+
+  return { isValid: true };
 };
 
 module.exports = {
