@@ -10,6 +10,7 @@ import SignUp02 from '@/components/signup-02/signup-02'
 
 import Dashboard from '@/components/dashboard/dashboard'
 import Leaderboard from '@/components/leaderboard/leaderboard' // Add this import
+import Insights from '@/components/insights/insights' // Add this import
 
 import './App.css'
 
@@ -20,7 +21,8 @@ function App() {
         <Route path="/signup" element={<SignUp02 />} />
         <Route path="/login" element={<Login02 />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/leaderboard" element={<Leaderboard />} /> {/* Add this route */}
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/insights" element={<Insights />} />
         <Route path="/" element={
           <>
             <Navbar />

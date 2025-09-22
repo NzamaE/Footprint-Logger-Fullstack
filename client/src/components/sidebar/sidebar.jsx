@@ -48,7 +48,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="border-b px-6 py-4">
-        <h2 className="text-xl font-bold text-primary">🌱 ecoTracker</h2>
+        <h2 className="text-xl font-bold text-primary">ecoTracker</h2>
       </SidebarHeader>
       
       <SidebarContent className="px-4 py-4">
