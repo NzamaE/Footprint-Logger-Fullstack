@@ -10,8 +10,7 @@ import SignUp02 from '@/components/signup-02/signup-02'
 
 import Dashboard from '@/components/dashboard/dashboard'
 import Leaderboard from '@/components/leaderboard/leaderboard' // Add this import
-import Insights from '@/components/insights/insights' // Add this import
-
+import Insights from '@/components/insights/insights'
 import './App.css'
 
 function App() {
