@@ -8,6 +8,7 @@ require('dotenv').config();
 const authRoutes = require('./routes/auth');
 const activityRoutes = require('./routes/activities');
 const dashboardRoutes = require('./routes/dashboard');
+const insightsRoutes = require('./routes/insights');
 
 const app = express();
 
@@ -50,6 +51,7 @@ mongoose.connection.on('disconnected', () => {
 app.use('/api/auth', authRoutes);
 app.use('/api/activities', activityRoutes);
 app.use('/api', dashboardRoutes);
+app.use('/api/insights', insightsRoutes);
 
 // Health check route with more info
 app.get('/health', (req, res) => {

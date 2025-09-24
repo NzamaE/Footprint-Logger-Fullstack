@@ -24,6 +24,14 @@ const userSchema = new mongoose.Schema({
     required: true,
     minlength: 6
   },
+  // Weekly goal tracking fields
+  currentWeeklyGoal: { 
+    type: Object, 
+    default: null 
+  },
+  weeklyGoalHistory: [{ 
+    type: Object 
+  }],
   createdAt: { type: Date, default: Date.now }
 }, {
   timestamps: true
