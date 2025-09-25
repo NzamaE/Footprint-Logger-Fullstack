@@ -167,7 +167,62 @@ export const activityService = {
     } catch (error) {
       throw error.response?.data || error;
     }
+  },
+
+
+  // ===================================  
+// INSIGHTS & ANALYTICS FUNCTIONS
+// ===================================
+
+// Get weekly analysis and insights
+getWeeklyAnalysis: async () => {
+  try {
+    const response = await API.get('/insights/weekly-analysis');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
   }
+},
+
+// Get personalized recommendations
+getRecommendations: async () => {
+  try {
+    const response = await API.get('/insights/recommendations');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+},
+
+// Get trends data for charts
+getTrendsData: async (period = '30') => {
+  try {
+    const response = await API.get(`/insights/trends?period=${period}`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+},
+
+// Set weekly reduction goal
+setWeeklyGoal: async (goalData) => {
+  try {
+    const response = await API.post('/insights/set-weekly-goal', goalData);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+},
+
+// Get weekly goal progress
+getWeeklyGoalProgress: async () => {
+  try {
+    const response = await API.get('/insights/weekly-goal-progress');
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+}
 };
 
 // Helper functions for common operations
@@ -412,6 +467,10 @@ export const activityHelpers = {
     if (difference < 10) return { percentage: Math.abs(difference), status: "average" };
     return { percentage: difference, status: "needs_improvement" };
   }
+  
 };
+
+
+
 
 export default activityService;

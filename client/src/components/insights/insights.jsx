@@ -3,7 +3,7 @@ import DashboardNavbar from "@/components/sidebar/dashboardNavbar"
 import ActivityLogDialog from "@/components/ActivityLogDialog"
 import ChartPieLabelList from "@/components/Charts/chart-pie-label-list"
 import ChartLineWeekly from "@/components/Charts/chart-line-linear"
-import ChartArea from "@/components/Charts/chart-area-gradient"
+
 
 export default function Insights() {
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false)
@@ -40,8 +40,7 @@ export default function Insights() {
               {/* Chart Section */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ChartPieLabelList />
-                 <ChartLineWeekly />
-                 <ChartArea />
+                <ChartLineWeekly />
                 
                 {/* You can add more charts or components here */}
                 <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
