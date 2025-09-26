@@ -9,6 +9,7 @@ import Login02 from '@/components/login-02/login-02'
 import SignUp02 from '@/components/signup-02/signup-02'
 
 import Dashboard from '@/components/dashboard/dashboard'
+import Goals from '@/components/dashboard/goals'
 import Leaderboard from '@/components/leaderboard/leaderboard' // Add this import
 import Insights from '@/components/insights/insights'
 import './App.css'
@@ -22,6 +23,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/insights" element={<Insights />} />
+        <Route path="/goals" element={<Goals />} />
         <Route path="/" element={
           <>
             <Navbar />

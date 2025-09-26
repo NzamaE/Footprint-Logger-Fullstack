@@ -554,4 +554,116 @@ function calculateTrendDirection(trendsArray) {
   };
 }
 
+
+
+// Set emission reduction goal
+router.post('/set-emission-goal', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { targetEmissions, category, timeframe } = req.body;
+
+    // Validate input
+    if (!targetEmissions || targetEmissions <= 0) {
+      return res.status(400).json({ error: 'Target emissions must be a positive number' });
+    }
+
+    if (!['weekly', 'monthly'].includes(timeframe)) {
+      return res.status(400).json({ error: 'Timeframe must be weekly or monthly' });
+    }
+
+    // Calculate baseline from previous period
+    const days = timeframe === 'weekly' ? 7 : 30;
+    const baselinePeriodStart = getDateRange(days * 2);
+    const baselinePeriodEnd = getDateRange(days);
+    
+    const baselineActivities = await Activity.find({
+      userId,
+      date: { $gte: baselinePeriodStart, $lt: baselinePeriodEnd },
+      ...(category && category !== 'all' && { activityType: category })
+    });
+
+    const baselineEmissions = baselineActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
+    
+    // Create emission goal
+    const emissionGoal = {
+      userId,
+      targetEmissions,
+      category: category || 'all',
+      timeframe,
+      baselineEmissions: parseFloat(baselineEmissions.toFixed(2)),
+      startDate: new Date(),
+      endDate: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+      status: 'active',
+      createdAt: new Date()
+    };
+
+    // Save to user document
+    await User.findByIdAndUpdate(userId, {
+      $set: { currentEmissionGoal: emissionGoal },
+      $push: { emissionGoalHistory: emissionGoal }
+    });
+
+    res.json({
+      message: 'Emission goal set successfully',
+      goal: emissionGoal
+    });
+
+  } catch (error) {
+    console.error('Set emission goal error:', error);
+    res.status(500).json({ error: 'Error setting emission goal' });
+  }
+});
+
+// Get current emission goal progress
+router.get('/emission-goal-progress', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const user = await User.findById(userId);
+    const currentGoal = user.currentEmissionGoal;
+
+    if (!currentGoal || new Date() > currentGoal.endDate) {
+      return res.json({ 
+        hasActiveGoal: false,
+        message: 'No active emission goal found'
+      });
+    }
+
+    // Calculate current progress
+    const goalStartDate = new Date(currentGoal.startDate);
+    const currentActivities = await Activity.find({
+      userId,
+      date: { $gte: goalStartDate },
+      ...(currentGoal.category !== 'all' && { activityType: currentGoal.category })
+    });
+
+    const currentEmissions = currentActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
+    const progressPercentage = currentGoal.targetEmissions > 0 
+      ? parseFloat(((currentEmissions / currentGoal.targetEmissions) * 100).toFixed(1))
+      : 0;
+
+    const daysRemaining = Math.ceil((currentGoal.endDate - new Date()) / (24 * 60 * 60 * 1000));
+    const isOnTrack = currentEmissions <= currentGoal.targetEmissions;
+
+    res.json({
+      hasActiveGoal: true,
+      goal: currentGoal,
+      progress: {
+        currentEmissions: parseFloat(currentEmissions.toFixed(2)),
+        targetEmissions: currentGoal.targetEmissions,
+        baselineEmissions: currentGoal.baselineEmissions,
+        progressPercentage,
+        isOnTrack,
+        daysRemaining,
+        activitiesLogged: currentActivities.length,
+        remainingBudget: parseFloat((currentGoal.targetEmissions - currentEmissions).toFixed(2))
+      }
+    });
+
+  } catch (error) {
+    console.error('Emission goal progress error:', error);
+    res.status(500).json({ error: 'Error fetching emission goal progress' });
+  }
+});
+
 module.exports = router;
