@@ -13,19 +13,7 @@ import { AppSidebar } from "@/components/sidebar/sidebar"
 import TeamSwitcher from "@/components/team-switcher"
 import UserMenu from "@/components/user-menu"
 import { Button } from "@/components/ui/button"
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-} from "@/components/ui/navigation-menu"
 
-const navigationLinks = [
-  { href: "#", label: "Dashboard", icon: HouseIcon },
-  { href: "#", label: "Explore", icon: CompassIcon },
-  { href: "#", label: "Write", icon: FeatherIcon },
-  { href: "#", label: "Search", icon: SearchIcon },
-]
 
 export default function DashboardNavbar({ onAddActivity }) {
   const handleLogActivity = () => {
@@ -35,39 +23,21 @@ export default function DashboardNavbar({ onAddActivity }) {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b px-4 md:px-2 bg-background">
+    <header className="sticky top-0 z-50 border-b px-4 md:px-2 bg-background contain-to-nev">
       <div className="flex h-12 items-center justify-between gap-5">
         
         {/* Left side - Sidebar */}
-        <SidebarProvider>
+       <SidebarProvider>
           <div className="flex">
             <AppSidebar />
           </div>
         </SidebarProvider>
                     
-        {/* Middle area */}
-        <NavigationMenu className="max-md:hidden">
-          <NavigationMenuList className="gap-2">
-            {navigationLinks.map((link, index) => {
-              const Icon = link.icon
-              return (
-                <NavigationMenuItem key={index}>
-                  <NavigationMenuLink
-                    href={link.href}
-                    className="flex size-8 items-center justify-center p-1.5"
-                    title={link.label}
-                  >
-                    <Icon aria-hidden="true" />
-                    <span className="sr-only">{link.label}</span>
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-              )
-            })}
-          </NavigationMenuList>
-        </NavigationMenu>
+       
         
         {/* Right side */}
-        <div className="flex flex-1 items-center justify-end gap-4">
+       <div className="flex flex-1 items-start justify-end gap-4 -mt-0">
+
           <Button
             size="sm"
             className="text-sm max-sm:aspect-square max-sm:p-0"

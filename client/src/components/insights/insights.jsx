@@ -18,7 +18,7 @@ export default function Insights() {
   }
 
   return (
-    <div>
+    <div className="container">
       <DashboardNavbar 
         onAddActivity={handleAddActivity}
       />

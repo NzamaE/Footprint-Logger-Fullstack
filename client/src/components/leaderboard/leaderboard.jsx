@@ -18,7 +18,7 @@ export default function Leaderboard() {
   }
 
   return (
-    <div>
+    <div className="container">
       <DashboardNavbar 
         onAddActivity={handleAddActivity}
       />

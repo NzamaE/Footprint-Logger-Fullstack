@@ -28,13 +28,13 @@ const items = [
     icon: IconListDetails,
   },
   {
-    title: "Insights", // Fixed typo: "Isights" -> "Insights"
+    title: "Insights", 
     url: "/insights",
     icon: IconChartBar,
   },
   {
-    title: "Settings",
-    url: "/settings", 
+    title: "Goals",
+    url: "/goals", 
     icon: Settings,
   },
 ]
@@ -46,7 +46,7 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar>
+    <Sidebar className="h-full">
       <SidebarHeader className="border-b px-6 py-4">
         <h2 className="text-xl font-bold text-primary">ecoTracker</h2>
       </SidebarHeader>
