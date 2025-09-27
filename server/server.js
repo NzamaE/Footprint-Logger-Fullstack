@@ -1,6 +1,7 @@
 const app = require('./app');
 const http = require('http');
 const socketIo = require('socket.io');
+const cors = require('cors');
 
 const PORT = process.env.PORT || 3000;
 
@@ -8,11 +9,23 @@ const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST"]
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        process.env.CLIENT_URL,
+        'http://localhost:5173',
+        'https://your-app.vercel.app', // Add your production URL
+      ].filter(Boolean);
+      
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
-
 // Store authenticated socket connections
 const authenticatedSockets = new Map();
 

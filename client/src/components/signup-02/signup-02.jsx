@@ -61,7 +61,7 @@ const SignUp02 = () => {
       
       // Redirect to login page after successful registration
       setTimeout(() => {
-        // window.location.href = "/login"; // Simple redirect
+        window.location.href = "/login"; // Simple redirect
         // or if using React Router: navigate("/login");
         console.log("Redirecting to login...");
       }, 1500);
