@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from "sonner"; // Add this import
 
 import Navbar from '@/components/Navbar'
 import Hero06 from '@/components/hero-06/hero-06'
@@ -10,7 +11,7 @@ import SignUp02 from '@/components/signup-02/signup-02'
 
 import Dashboard from '@/components/dashboard/dashboard'
 import Goals from '@/components/dashboard/goals'
-import Leaderboard from '@/components/leaderboard/leaderboard' // Add this import
+import Leaderboard from '@/components/leaderboard/leaderboard'
 import Insights from '@/components/insights/insights'
 import './App.css'
 
@@ -34,6 +35,21 @@ function App() {
           </>
         } />
       </Routes>
+      
+      {/* Add Sonner Toaster at the end, outside of Routes */}
+      <Toaster
+        position="top-right"
+        expand={true}
+        richColors={true}
+        closeButton={true}
+        toastOptions={{
+          style: {
+            borderRadius: '8px',
+          },
+          className: 'sonner-toast',
+          duration: 5000,
+        }}
+      />
     </Router>
   )
 }

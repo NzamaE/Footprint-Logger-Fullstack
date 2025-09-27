@@ -1,7 +1,7 @@
-// routes/insights.js - Insights and recommendations engine
 const express = require('express');
 const Activity = require('../models/Activity');
 const User = require('../models/User');
+const { ObjectId } = require('mongoose').Types;
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
@@ -69,6 +69,17 @@ router.get('/weekly-analysis', async (req, res) => {
     const insights = generateInsights(categoryAnalysis, highestCategory, totalWeeklyEmissions);
     const weeklyTips = generateWeeklyTips(categoryAnalysis, highestCategory);
     const reductionTargets = calculateReductionTargets(categoryAnalysis, totalWeeklyEmissions);
+
+    // 🚀 NEW: Send weekly insights via WebSocket if significant changes detected
+    const io = req.app.get('io');
+    if (io && shouldSendWeeklyUpdate(totalWeeklyEmissions, insights)) {
+      io.to(`user:${userId}`).emit('weekly_insights', {
+        totalEmissions: totalWeeklyEmissions,
+        highestCategory,
+        keyInsight: insights[0] || null,
+        topTip: weeklyTips[0] || null
+      });
+    }
 
     res.json({
       period: 'Last 7 days',
@@ -168,7 +179,7 @@ router.post('/set-weekly-goal', async (req, res) => {
       weeklyGoal.targetEmissions = parseFloat((baselineEmissions - targetReduction).toFixed(2));
     }
 
-    // For now, store in user document (you might want a separate Goals collection)
+    // Save goal
     await User.findByIdAndUpdate(userId, {
       $set: { 
         currentWeeklyGoal: weeklyGoal,
@@ -176,6 +187,16 @@ router.post('/set-weekly-goal', async (req, res) => {
       },
       $push: { weeklyGoalHistory: weeklyGoal }
     });
+
+    // 🚀 NEW: Send goal confirmation via WebSocket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user:${userId}`).emit('goal_set', {
+        type: 'weekly',
+        goal: weeklyGoal,
+        message: `Weekly ${goalType === 'percentage' ? targetReduction + '%' : targetReduction + ' kg'} reduction goal set!`
+      });
+    }
 
     res.json({
       message: 'Weekly goal set successfully',
@@ -218,6 +239,20 @@ router.get('/weekly-goal-progress', async (req, res) => {
 
     const daysRemaining = Math.ceil((currentGoal.endDate - new Date()) / (24 * 60 * 60 * 1000));
     const isOnTrack = currentEmissions <= currentGoal.targetEmissions;
+
+    // 🚀 NEW: Send progress milestone notifications
+    const io = req.app.get('io');
+    if (io && shouldSendProgressUpdate(progressPercentage)) {
+      const milestoneMessage = getMilestoneMessage(progressPercentage, isOnTrack, daysRemaining);
+      if (milestoneMessage) {
+        io.to(`user:${userId}`).emit('goal_milestone', {
+          progress: progressPercentage,
+          message: milestoneMessage,
+          isOnTrack,
+          daysRemaining
+        });
+      }
+    }
 
     res.json({
       hasActiveGoal: true,
@@ -289,6 +324,16 @@ router.get('/trends', async (req, res) => {
     // Calculate trend direction
     const trendDirection = calculateTrendDirection(trendsArray);
 
+    // 🚀 NEW: Send trend alerts for significant changes
+    const io = req.app.get('io');
+    if (io && shouldSendTrendAlert(trendDirection)) {
+      io.to(`user:${userId}`).emit('trend_alert', {
+        direction: trendDirection.direction,
+        change: trendDirection.change,
+        message: getTrendAlertMessage(trendDirection)
+      });
+    }
+
     res.json({
       period: `${periodInt} days`,
       weeklyTrends: trendsArray,
@@ -301,6 +346,223 @@ router.get('/trends', async (req, res) => {
     res.status(500).json({ error: 'Error fetching emission trends' });
   }
 });
+
+// Set emission reduction goal (enhanced with WebSocket notifications)
+router.post('/set-emission-goal', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { targetEmissions, category, timeframe } = req.body;
+
+    // Validate input
+    if (!targetEmissions || targetEmissions <= 0) {
+      return res.status(400).json({ error: 'Target emissions must be a positive number' });
+    }
+
+    if (!['weekly', 'monthly'].includes(timeframe)) {
+      return res.status(400).json({ error: 'Timeframe must be weekly or monthly' });
+    }
+
+    // Calculate baseline from previous period
+    const days = timeframe === 'weekly' ? 7 : 30;
+    const baselinePeriodStart = getDateRange(days * 2);
+    const baselinePeriodEnd = getDateRange(days);
+    
+    const baselineActivities = await Activity.find({
+      userId,
+      date: { $gte: baselinePeriodStart, $lt: baselinePeriodEnd },
+      ...(category && category !== 'all' && { activityType: category })
+    });
+
+    const baselineEmissions = baselineActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
+    
+    // Create emission goal
+    const emissionGoal = {
+      userId,
+      targetEmissions,
+      category: category || 'all',
+      timeframe,
+      baselineEmissions: parseFloat(baselineEmissions.toFixed(2)),
+      startDate: new Date(),
+      endDate: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
+      status: 'active',
+      createdAt: new Date()
+    };
+
+    // Save to user document
+    await User.findByIdAndUpdate(userId, {
+      $set: { currentEmissionGoal: emissionGoal },
+      $push: { emissionGoalHistory: emissionGoal }
+    });
+
+    // 🚀 NEW: Send goal confirmation via WebSocket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`user:${userId}`).emit('emission_goal_set', {
+        goal: emissionGoal,
+        message: `${timeframe.charAt(0).toUpperCase() + timeframe.slice(1)} emission goal of ${targetEmissions} kg CO₂ set successfully!`,
+        tips: getGoalStartTips(category, targetEmissions, baselineEmissions)
+      });
+    }
+
+    res.json({
+      message: 'Emission goal set successfully',
+      goal: emissionGoal
+    });
+
+  } catch (error) {
+    console.error('Set emission goal error:', error);
+    res.status(500).json({ error: 'Error setting emission goal' });
+  }
+});
+
+// Get current emission goal progress (enhanced with milestone notifications)
+router.get('/emission-goal-progress', async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const user = await User.findById(userId);
+    const currentGoal = user?.currentEmissionGoal;
+
+    if (!currentGoal || new Date() > currentGoal.endDate) {
+      return res.json({ 
+        hasActiveGoal: false,
+        message: 'No active emission goal found'
+      });
+    }
+
+    // Calculate current progress
+    const goalStartDate = new Date(currentGoal.startDate);
+    const currentActivities = await Activity.find({
+      userId,
+      date: { $gte: goalStartDate },
+      ...(currentGoal.category !== 'all' && { activityType: currentGoal.category })
+    });
+
+    const currentEmissions = currentActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
+    const progressPercentage = currentGoal.targetEmissions > 0
+      ? parseFloat(((currentEmissions / currentGoal.targetEmissions) * 100).toFixed(1))
+      : 0;
+
+    const daysRemaining = Math.ceil((currentGoal.endDate - new Date()) / (24 * 60 * 60 * 1000));
+    const isOnTrack = currentEmissions <= currentGoal.targetEmissions;
+
+    // 🚀 NEW: Send critical goal status updates
+    const io = req.app.get('io');
+    if (io && shouldSendGoalStatusUpdate(progressPercentage, daysRemaining, isOnTrack)) {
+      const statusMessage = getGoalStatusMessage(progressPercentage, daysRemaining, isOnTrack, currentGoal.targetEmissions, currentEmissions);
+      io.to(`user:${userId}`).emit('goal_status_update', {
+        progressPercentage,
+        isOnTrack,
+        daysRemaining,
+        message: statusMessage,
+        urgency: progressPercentage > 90 ? 'high' : progressPercentage > 75 ? 'medium' : 'low'
+      });
+    }
+
+    res.json({
+      hasActiveGoal: true,
+      goal: currentGoal,
+      progress: {
+        currentEmissions: parseFloat(currentEmissions.toFixed(2)),
+        targetEmissions: currentGoal.targetEmissions,
+        baselineEmissions: currentGoal.baselineEmissions,
+        progressPercentage,
+        isOnTrack,
+        daysRemaining,
+        activitiesLogged: currentActivities.length,
+        remainingBudget: parseFloat((currentGoal.targetEmissions - currentEmissions).toFixed(2))
+      }
+    });
+
+  } catch (error) {
+    console.error('Emission goal progress error:', error);
+    res.status(500).json({ error: 'Error fetching emission goal progress' });
+  }
+});
+
+// 🚀 NEW: WebSocket helper functions
+function shouldSendWeeklyUpdate(totalEmissions, insights) {
+  // Send if emissions are unusually high or if there are high-priority insights
+  return totalEmissions > 40 || insights.some(insight => insight.priority === 'high');
+}
+
+function shouldSendProgressUpdate(progressPercentage) {
+  // Current logic sends at exact 25%, 50%, etc. but users might miss these
+  // Better to use ranges to avoid missing milestones
+  const currentMilestone = Math.floor(progressPercentage / 25) * 25;
+  const previousMilestone = Math.floor((progressPercentage - 5) / 25) * 25;
+  return currentMilestone > previousMilestone && currentMilestone > 0;
+}
+
+function getMilestoneMessage(progressPercentage, isOnTrack, daysRemaining) {
+  if (progressPercentage >= 100) {
+    return isOnTrack ? "Congratulations! You've achieved your goal!" : "Goal completed - consider setting a new challenge!";
+  } else if (progressPercentage >= 75) {
+    return isOnTrack ? "Great progress! You're on track to meet your goal." : `You're ${daysRemaining} days behind - time to focus!`;
+  } else if (progressPercentage >= 50) {
+    return "You're halfway to your goal - keep it up!";
+  } else if (progressPercentage >= 25) {
+    return "Good start! You're 25% towards your goal.";
+  }
+  return null;
+}
+
+function shouldSendTrendAlert(trendDirection) {
+  // Send alerts for significant changes (>15% increase)
+  return trendDirection.direction === 'increasing' && Math.abs(trendDirection.percentageChange) > 15;
+}
+
+function getTrendAlertMessage(trendDirection) {
+  if (trendDirection.direction === 'increasing') {
+    return `Your emissions have increased by ${trendDirection.percentageChange}% this week. Consider reviewing your recent activities.`;
+  } else if (trendDirection.direction === 'decreasing') {
+    return `Great news! Your emissions decreased by ${Math.abs(trendDirection.percentageChange)}% this week.`;
+  }
+  return 'Your emissions are stable this week.';
+}
+
+function shouldSendGoalStatusUpdate(progressPercentage, daysRemaining, isOnTrack) {
+  // Send critical updates when approaching goal limits or running out of time
+  return (progressPercentage > 85) || (daysRemaining <= 2 && !isOnTrack) || (progressPercentage > 100);
+}
+
+function getGoalStatusMessage(progressPercentage, daysRemaining, isOnTrack, targetEmissions, currentEmissions) {
+  if (progressPercentage > 100) {
+    const excess = currentEmissions - targetEmissions;
+    return `You've exceeded your goal by ${excess.toFixed(1)} kg CO₂. Consider low-emission activities for the remaining ${daysRemaining} days.`;
+  } else if (daysRemaining <= 1 && !isOnTrack) {
+    return `Final day! You need to reduce emissions significantly to meet your goal.`;
+  } else if (progressPercentage > 85) {
+    return `You're at ${progressPercentage}% of your emission goal with ${daysRemaining} days remaining. Stay focused!`;
+  }
+  return null;
+}
+
+function getGoalStartTips(category, targetEmissions, baselineEmissions) {
+  const reduction = baselineEmissions - targetEmissions;
+  const tips = [];
+  
+  if (category === 'transport' || category === 'all') {
+    tips.push('Try walking or cycling for short trips');
+    tips.push('Use public transport instead of driving');
+  }
+  
+  if (category === 'food' || category === 'all') {
+    tips.push('Choose plant-based meals 2-3 times this week');
+    tips.push('Buy local, seasonal produce');
+  }
+  
+  if (category === 'energy' || category === 'all') {
+    tips.push('Lower thermostat by 2°C when away');
+    tips.push('Unplug unused electronics');
+  }
+  
+  return tips.slice(0, 3);
+}
+
+// ========================================
+// All your existing helper functions remain unchanged
+// ========================================
 
 // Helper function to generate insights
 function generateInsights(categoryAnalysis, highestCategory, totalEmissions) {
@@ -553,117 +815,5 @@ function calculateTrendDirection(trendsArray) {
     percentageChange: parseFloat(percentageChange.toFixed(1))
   };
 }
-
-
-
-// Set emission reduction goal
-router.post('/set-emission-goal', async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { targetEmissions, category, timeframe } = req.body;
-
-    // Validate input
-    if (!targetEmissions || targetEmissions <= 0) {
-      return res.status(400).json({ error: 'Target emissions must be a positive number' });
-    }
-
-    if (!['weekly', 'monthly'].includes(timeframe)) {
-      return res.status(400).json({ error: 'Timeframe must be weekly or monthly' });
-    }
-
-    // Calculate baseline from previous period
-    const days = timeframe === 'weekly' ? 7 : 30;
-    const baselinePeriodStart = getDateRange(days * 2);
-    const baselinePeriodEnd = getDateRange(days);
-    
-    const baselineActivities = await Activity.find({
-      userId,
-      date: { $gte: baselinePeriodStart, $lt: baselinePeriodEnd },
-      ...(category && category !== 'all' && { activityType: category })
-    });
-
-    const baselineEmissions = baselineActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
-    
-    // Create emission goal
-    const emissionGoal = {
-      userId,
-      targetEmissions,
-      category: category || 'all',
-      timeframe,
-      baselineEmissions: parseFloat(baselineEmissions.toFixed(2)),
-      startDate: new Date(),
-      endDate: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
-      status: 'active',
-      createdAt: new Date()
-    };
-
-    // Save to user document
-    await User.findByIdAndUpdate(userId, {
-      $set: { currentEmissionGoal: emissionGoal },
-      $push: { emissionGoalHistory: emissionGoal }
-    });
-
-    res.json({
-      message: 'Emission goal set successfully',
-      goal: emissionGoal
-    });
-
-  } catch (error) {
-    console.error('Set emission goal error:', error);
-    res.status(500).json({ error: 'Error setting emission goal' });
-  }
-});
-
-// Get current emission goal progress
-router.get('/emission-goal-progress', async (req, res) => {
-  try {
-    const userId = req.user._id;
-    
-    const user = await User.findById(userId);
-    const currentGoal = user.currentEmissionGoal;
-
-    if (!currentGoal || new Date() > currentGoal.endDate) {
-      return res.json({ 
-        hasActiveGoal: false,
-        message: 'No active emission goal found'
-      });
-    }
-
-    // Calculate current progress
-    const goalStartDate = new Date(currentGoal.startDate);
-    const currentActivities = await Activity.find({
-      userId,
-      date: { $gte: goalStartDate },
-      ...(currentGoal.category !== 'all' && { activityType: currentGoal.category })
-    });
-
-    const currentEmissions = currentActivities.reduce((sum, activity) => sum + activity.carbonFootprint, 0);
-    const progressPercentage = currentGoal.targetEmissions > 0 
-      ? parseFloat(((currentEmissions / currentGoal.targetEmissions) * 100).toFixed(1))
-      : 0;
-
-    const daysRemaining = Math.ceil((currentGoal.endDate - new Date()) / (24 * 60 * 60 * 1000));
-    const isOnTrack = currentEmissions <= currentGoal.targetEmissions;
-
-    res.json({
-      hasActiveGoal: true,
-      goal: currentGoal,
-      progress: {
-        currentEmissions: parseFloat(currentEmissions.toFixed(2)),
-        targetEmissions: currentGoal.targetEmissions,
-        baselineEmissions: currentGoal.baselineEmissions,
-        progressPercentage,
-        isOnTrack,
-        daysRemaining,
-        activitiesLogged: currentActivities.length,
-        remainingBudget: parseFloat((currentGoal.targetEmissions - currentEmissions).toFixed(2))
-      }
-    });
-
-  } catch (error) {
-    console.error('Emission goal progress error:', error);
-    res.status(500).json({ error: 'Error fetching emission goal progress' });
-  }
-});
 
 module.exports = router;

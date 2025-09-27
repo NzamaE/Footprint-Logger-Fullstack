@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { CalendarIcon, Loader } from "lucide-react"
+import { CalendarIcon, Loader, Lightbulb, TrendingUp, AlertTriangle } from "lucide-react"
 import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
@@ -29,25 +29,21 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 import { activityService, activityHelpers } from "@/services/activityService"
+import { websocketService } from "@/services/websocketService"
 import { useForm } from "react-hook-form"
-import { cn } from "@/lib/utils"
 
 export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved }) {
   const [loading, setLoading] = useState(false)
   const [calculatingPreview, setCalculatingPreview] = useState(false)
   const [carbonPreview, setCarbonPreview] = useState(null)
-  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [realTimeTip, setRealTimeTip] = useState(null)
+  const [goalStatus, setGoalStatus] = useState(null)
   
   const form = useForm({
     defaultValues: {
@@ -66,6 +62,24 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
   const watchedQuantity = form.watch("quantity")
   const watchedActivityDetails = form.watch("activityDetails")
 
+  // Fetch current goal status when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchGoalStatus()
+    }
+  }, [open])
+
+  const fetchGoalStatus = async () => {
+    try {
+      const goalData = await activityService.getEmissionGoalProgress()
+      if (goalData.hasActiveGoal) {
+        setGoalStatus(goalData)
+      }
+    } catch (error) {
+      console.error('Failed to fetch goal status:', error)
+    }
+  }
+
   // Calculate carbon preview when relevant fields change
   useEffect(() => {
     const calculatePreview = async () => {
@@ -81,20 +95,85 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
             activityDetails: watchedActivityDetails
           })
           setCarbonPreview(preview)
+          
+          // Generate preview tip based on goal status and emission level
+          if (goalStatus && preview.calculatedCarbonFootprint) {
+            generatePreviewTip(preview.calculatedCarbonFootprint)
+          }
         } catch (error) {
           console.error("Failed to calculate preview:", error)
           setCarbonPreview(null)
+          setRealTimeTip(null)
         } finally {
           setCalculatingPreview(false)
         }
       } else {
         setCarbonPreview(null)
+        setRealTimeTip(null)
       }
     }
 
     const timeoutId = setTimeout(calculatePreview, 500) // Debounce
     return () => clearTimeout(timeoutId)
-  }, [watchedActivityType, watchedQuantity, watchedActivityDetails])
+  }, [watchedActivityType, watchedQuantity, watchedActivityDetails, goalStatus])
+
+  const generatePreviewTip = (carbonFootprint) => {
+    if (!goalStatus || !goalStatus.hasActiveGoal) return
+
+    const { goal, progress } = goalStatus
+    const remainingBudget = progress.remainingBudget
+    const daysRemaining = progress.daysRemaining
+
+    // Check if this activity would exceed budget
+    const newTotal = progress.currentEmissions + carbonFootprint
+    const wouldExceedBudget = newTotal > goal.targetEmissions
+
+    if (wouldExceedBudget) {
+      const excess = newTotal - goal.targetEmissions
+      setRealTimeTip({
+        type: 'warning',
+        title: 'Budget Alert!',
+        message: `This activity would put you ${excess.toFixed(1)} kg CO₂ over your ${goal.timeframe} goal.`,
+        suggestions: getAlternativeSuggestions(watchedActivityType)
+      })
+    } else if (carbonFootprint > remainingBudget * 0.5) {
+      setRealTimeTip({
+        type: 'alert',
+        title: 'High Impact Activity',
+        message: `This uses ${((carbonFootprint / remainingBudget) * 100).toFixed(0)}% of your remaining budget.`,
+        suggestions: getOptimizationSuggestions(watchedActivityType, watchedActivityDetails)
+      })
+    } else if (carbonFootprint < 1) {
+      setRealTimeTip({
+        type: 'success',
+        title: 'Low Carbon Choice!',
+        message: `Great choice! This activity has minimal environmental impact.`,
+        suggestions: []
+      })
+    } else {
+      setRealTimeTip(null)
+    }
+  }
+
+  const getAlternativeSuggestions = (activityType) => {
+    const suggestions = {
+      transport: ['Walk or cycle instead', 'Use public transport', 'Combine trips'],
+      food: ['Try plant-based option', 'Choose local produce', 'Smaller portion'],
+      energy: ['Use LED lighting', 'Lower thermostat', 'Unplug devices'],
+      waste: ['Recycle if possible', 'Compost organic waste', 'Reduce packaging']
+    }
+    return suggestions[activityType] || ['Consider eco-friendly alternatives']
+  }
+
+  const getOptimizationSuggestions = (activityType, details) => {
+    if (activityType === 'transport' && details?.transportMode === 'car_gasoline') {
+      return ['Consider carpooling', 'Plan efficient route', 'Use hybrid next time']
+    }
+    if (activityType === 'food' && details?.foodType === 'beef') {
+      return ['Try chicken instead', 'Reduce portion size', 'Add more vegetables']
+    }
+    return ['Look for more efficient options']
+  }
 
   const onSubmit = async (data) => {
     try {
@@ -106,17 +185,31 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
           value: parseFloat(data.quantity.value),
           unit: data.quantity.unit
         },
-        date: new Date().toISOString(), // Always use current time for submission
+        date: new Date().toISOString(),
         activityDetails: data.activityDetails || {}
       }
 
-      await activityService.createActivity(activityData)
+      // Submit activity - this will trigger WebSocket real-time tips from backend
+      const response = await activityService.createActivity(activityData)
       
-      toast.success("Activity logged successfully!")
+      // Show success message
+      toast.success("Activity logged successfully!", {
+        description: `${activityHelpers.formatCarbonFootprint(response.activity.calculatedCarbonFootprint)} added to your footprint`
+      })
+
+      // Show any additional tip from the response
+      if (response.realTimeTip) {
+        const tipType = response.realTimeTip.type === 'warning' ? 'warning' : 
+                       response.realTimeTip.type === 'success' ? 'success' : 'info'
+        toast[tipType](response.realTimeTip.title, {
+          description: response.realTimeTip.message
+        })
+      }
 
       // Reset form and close dialog
       form.reset()
       setCarbonPreview(null)
+      setRealTimeTip(null)
       onActivitySaved?.()
       
     } catch (error) {
@@ -130,7 +223,26 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
   const handleClose = () => {
     form.reset()
     setCarbonPreview(null)
+    setRealTimeTip(null)
     onOpenChange(false)
+  }
+
+  const getTipIcon = (type) => {
+    switch (type) {
+      case 'warning': return AlertTriangle
+      case 'alert': return TrendingUp
+      case 'success': return Lightbulb
+      default: return Lightbulb
+    }
+  }
+
+  const getTipColors = (type) => {
+    switch (type) {
+      case 'warning': return 'border-red-200 bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-200'
+      case 'alert': return 'border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+      case 'success': return 'border-green-200 bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-200'
+      default: return 'border-blue-200 bg-blue-50 text-blue-800 dark:bg-blue-950 dark:text-blue-200'
+    }
   }
 
   const getActivitySpecificFields = () => {
@@ -309,7 +421,7 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
         <DialogHeader>
           <DialogTitle>Log New Activity</DialogTitle>
           <DialogDescription>
-            Add a new carbon footprint activity. The system will automatically calculate the CO₂ emissions.
+            Add a new carbon footprint activity with real-time impact preview and smart recommendations.
           </DialogDescription>
         </DialogHeader>
 
@@ -423,45 +535,7 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
             {/* Activity-specific fields */}
             {getActivitySpecificFields()}
 
-            {/* Optional: Date field can be removed entirely since we're using current time
-            <FormItem>
-              <FormLabel>Date *</FormLabel>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <FormControl>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full pl-3 text-left font-normal",
-                        !selectedDate && "text-muted-foreground"
-                      )}
-                    >
-                      {selectedDate ? (
-                        format(selectedDate, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </FormControl>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={setSelectedDate}
-                    disabled={(date) =>
-                      date > new Date() || date < new Date("1900-01-01")
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-              <FormMessage />
-            </FormItem>
-            */}
-
-            {/* Show current time info instead */}
+            {/* Timestamp info */}
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
               <CalendarIcon className="h-4 w-4" />
               <span>Activity will be logged at: <strong>{format(new Date(), "PPP 'at' p")}</strong></span>
@@ -471,16 +545,19 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
             {(carbonPreview || calculatingPreview) && (
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Carbon Footprint Preview</CardTitle>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Lightbulb className="size-4" />
+                    Impact Preview
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   {calculatingPreview ? (
                     <div className="flex items-center gap-2">
                       <Loader className="h-4 w-4 animate-spin" />
                       <span className="text-sm">Calculating...</span>
                     </div>
                   ) : carbonPreview ? (
-                    <div className="space-y-2">
+                    <>
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium">Estimated CO₂:</span>
                         <Badge variant="secondary" className="font-mono">
@@ -490,10 +567,47 @@ export default function ActivityLogDialog({ open, onOpenChange, onActivitySaved 
                       <div className="text-xs text-muted-foreground">
                         Emission factor: {carbonPreview.emissionFactor} kg CO₂/{carbonPreview.calculation.quantity?.replace(/[\d.]/g, '')}
                       </div>
-                    </div>
+
+                      {/* Goal Context */}
+                      {goalStatus && goalStatus.hasActiveGoal && (
+                        <div className="pt-2 border-t">
+                          <div className="text-xs text-muted-foreground mb-1">Goal Impact:</div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span>Remaining budget:</span>
+                            <span className="font-medium">
+                              {goalStatus.progress.remainingBudget.toFixed(1)} kg CO₂
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   ) : null}
                 </CardContent>
               </Card>
+            )}
+
+            {/* Real-time Tip Preview */}
+            {realTimeTip && (
+              <Alert className={getTipColors(realTimeTip.type)}>
+                <div className="flex items-start gap-2">
+                  {(() => {
+                    const Icon = getTipIcon(realTimeTip.type)
+                    return <Icon className="size-4 mt-0.5" />
+                  })()}
+                  <div className="flex-1">
+                    <AlertDescription>
+                      <div className="font-medium text-sm mb-1">{realTimeTip.title}</div>
+                      <div className="text-sm mb-2">{realTimeTip.message}</div>
+                      {realTimeTip.suggestions.length > 0 && (
+                        <div className="text-xs">
+                          <span className="font-medium">Consider: </span>
+                          {realTimeTip.suggestions.slice(0, 2).join(', ')}
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </div>
+                </div>
+              </Alert>
             )}
 
             <DialogFooter>

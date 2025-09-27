@@ -290,17 +290,6 @@ export default function EnhancedPieChartWithInsights() {
         </div>
       </div>
 
-      {/* Insights Section */}
-      {insights.length > 0 && (
-        <div className="px-6 pb-6">
-          <h4 className="font-medium text-gray-900 mb-3">Key Insights</h4>
-          <div className="space-y-3">
-            {insights.slice(0, 2).map((insight, index) => (
-              <InsightCard key={index} insight={insight} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

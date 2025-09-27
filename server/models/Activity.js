@@ -118,10 +118,13 @@ activitySchema.virtual('formattedQuantity').get(function() {
 // Pre-save middleware to calculate carbon footprint
 activitySchema.pre('save', function(next) {
   if (this.isNew || this.isModified(['quantity', 'activityType', 'activityDetails'])) {
-    this.carbonFootprint = this.calculateCarbonFootprint();
+    const result = this.calculateCarbonFootprint();
+    this.carbonFootprint = result.carbonFootprint || result; // Handle both old and new format
+    this.emissionFactor = result.emissionFactor || 0;
   }
   next();
 });
+
 
 // Method to calculate carbon footprint based on activity data
 activitySchema.methods.calculateCarbonFootprint = function() {
@@ -148,8 +151,12 @@ activitySchema.methods.calculateCarbonFootprint = function() {
       emissionFactor = 0;
   }
   
-  this.emissionFactor = emissionFactor;
-  return Math.round(carbonFootprint * 100) / 100; // Round to 2 decimal places
+ 
+    this.emissionFactor = emissionFactor;
+  return { 
+    carbonFootprint: Math.round(carbonFootprint * 100) / 100,
+    emissionFactor 
+  };
 };
 
 // Transport emissions calculation

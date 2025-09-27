@@ -222,7 +222,27 @@ getWeeklyGoalProgress: async () => {
   } catch (error) {
     throw error.response?.data || error;
   }
+},
+
+setEmissionGoal: async (goalData) => {
+  try {
+    const response = await API.post('/insights/set-emission-goal', goalData)
+    return response.data
+  } catch (error) {
+    throw error.response?.data || error
+  }
+},
+
+getEmissionGoalProgress: async () => {
+  try {
+    const response = await API.get('/insights/emission-goal-progress')
+    return response.data
+  } catch (error) {
+    throw error.response?.data || error
+  }
 }
+
+
 };
 
 // Helper functions for common operations
