@@ -1,3 +1,4 @@
+
 const app = require('./app');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -7,25 +8,42 @@ const PORT = process.env.PORT || 3000;
 
 // Create HTTP server and Socket.IO instance
 const server = http.createServer(app);
+
+// Add Render optimization
+server.keepAliveTimeout = 120 * 1000;
+server.headersTimeout = 120 * 1000;
+
 const io = socketIo(server, {
   cors: {
     origin: function (origin, callback) {
       const allowedOrigins = [
         process.env.CLIENT_URL,
         'http://localhost:5173',
-        'https://your-app.vercel.app', // Add your production URL
-      ].filter(Boolean);
+        /^https:\/\/.*\.onrender\.com$/, // Allow all Render subdomains
+      ];
       
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (allowed instanceof RegExp) {
+          return allowed.test(origin);
+        }
+        return allowed === origin;
+      });
+      
+      if (isAllowed) {
         callback(null, true);
       } else {
+        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
       }
     },
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   }
 });
+
 // Store authenticated socket connections
 const authenticatedSockets = new Map();
 
@@ -60,6 +78,13 @@ io.use(async (socket, next) => {
 io.on('connection', (socket) => {
   console.log(`🔌 User ${socket.userId} connected via WebSocket`);
   
+  // Add production monitoring
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`   Origin: ${socket.handshake.headers.origin}`);
+    console.log(`   User-Agent: ${socket.handshake.headers['user-agent']?.substring(0, 50)}...`);
+    console.log(`   Total active connections: ${authenticatedSockets.size + 1}`);
+  }
+  
   // Store authenticated socket
   authenticatedSockets.set(socket.userId, socket);
   
@@ -88,27 +113,30 @@ server.listen(PORT, () => {
   console.log(`🌐 Health check: http://localhost:${PORT}/health`);
   console.log(`🔌 WebSocket ready for real-time features`);
   
-  console.log('\n📋 Available HTTP endpoints:');
-  console.log('POST /api/auth/register - Register new user');
-  console.log('POST /api/auth/login - Login user');
-  console.log('POST /api/activities - Add activity log');
-  console.log('GET /api/activities - Get user activities');
-  console.log('GET /api/dashboard - Get dashboard data with community comparison');
-  console.log('GET /api/streak - Get weekly summaries and streak tracking');
-  console.log('GET /api/leaderboard - Get low-footprint users leaderboard');
-  console.log('GET /api/stats - Get user statistics');
-  console.log('GET /api/insights/weekly-analysis - Get weekly insights');
-  console.log('GET /api/insights/recommendations - Get personalized recommendations');
-  console.log('POST /api/insights/set-emission-goal - Set emission reduction goals');
-  console.log('GET /api/insights/emission-goal-progress - Track goal progress');
-  
-  console.log('\n⚡ WebSocket Events:');
-  console.log('activity_tip - Real-time tips after logging activities');
-  console.log('goal_set - Confirmation when goals are set');
-  console.log('goal_milestone - Progress milestone notifications');
-  console.log('weekly_insights - Weekly analysis updates');
-  console.log('trend_alert - Significant trend change alerts');
-  console.log('goal_status_update - Critical goal status updates');
+  // Only log endpoints in development
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('\n📋 Available HTTP endpoints:');
+    console.log('POST /api/auth/register - Register new user');
+    console.log('POST /api/auth/login - Login user');
+    console.log('POST /api/activities - Add activity log');
+    console.log('GET /api/activities - Get user activities');
+    console.log('GET /api/dashboard - Get dashboard data with community comparison');
+    console.log('GET /api/streak - Get weekly summaries and streak tracking');
+    console.log('GET /api/leaderboard - Get low-footprint users leaderboard');
+    console.log('GET /api/stats - Get user statistics');
+    console.log('GET /api/insights/weekly-analysis - Get weekly insights');
+    console.log('GET /api/insights/recommendations - Get personalized recommendations');
+    console.log('POST /api/insights/set-emission-goal - Set emission reduction goals');
+    console.log('GET /api/insights/emission-goal-progress - Track goal progress');
+    
+    console.log('\n⚡ WebSocket Events:');
+    console.log('activity_tip - Real-time tips after logging activities');
+    console.log('goal_set - Confirmation when goals are set');
+    console.log('goal_milestone - Progress milestone notifications');
+    console.log('weekly_insights - Weekly analysis updates');
+    console.log('trend_alert - Significant trend change alerts');
+    console.log('goal_status_update - Critical goal status updates');
+  }
 });
 
 // Graceful shutdown with WebSocket cleanup
@@ -172,11 +200,15 @@ process.on('unhandledRejection', (reason, promise) => {
   process.exit(1);
 });
 
-// Optional: Monitor WebSocket connections
+// Monitor WebSocket connections (reduced logging for production)
 setInterval(() => {
   const connectedUsers = authenticatedSockets.size;
   if (connectedUsers > 0) {
-    console.log(`🔌 WebSocket Status: ${connectedUsers} users connected`);
+    if (process.env.NODE_ENV === 'production') {
+      console.log(`🔌 Active connections: ${connectedUsers}`);
+    } else {
+      console.log(`🔌 WebSocket Status: ${connectedUsers} users connected`);
+    }
   }
 }, 300000); // Log every 5 minutes if users are connected
 
